@@ -23,6 +23,14 @@ const userSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// OTP fields for email verification and password reset
+userSchema.add({
+  verificationOTP: { type: String },
+  verificationOTPExpires: { type: Date },
+  resetOTP: { type: String },
+  resetOTPExpires: { type: Date },
+});
+
 // Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {

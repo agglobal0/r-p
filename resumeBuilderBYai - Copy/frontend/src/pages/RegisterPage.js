@@ -17,7 +17,8 @@ function RegisterPage() {
     setError('');
     try {
       await register(username, email, password);
-      navigate('/');
+      // After registration, direct user to OTP verification
+      navigate('/verify-otp', { state: { email } });
     } catch (err) {
       setError('Failed to register. Please try another username.');
     } finally {

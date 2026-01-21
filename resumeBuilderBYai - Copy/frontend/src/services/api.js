@@ -18,6 +18,13 @@ const apiClient = axios.create({
 // Request interceptor for logging
 apiClient.interceptors.request.use(
   (config) => {
+    // attach user id header from localStorage if present
+    try {
+      const userId = localStorage.getItem('userId');
+      if (userId) {
+        config.headers['x-user-id'] = userId;
+      }
+    } catch (e) {}
     console.log('🚀 API Request:', config.method?.toUpperCase(), config.url);
     return config;
   },

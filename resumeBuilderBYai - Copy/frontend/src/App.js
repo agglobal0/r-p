@@ -14,8 +14,28 @@ import Editor from '@monaco-editor/react';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import HistoryPage from './pages/HistoryPage';
+import VerifyOTPPage from './pages/VerifyOTPPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import { getCurrentUser, logout } from './services/authService';
+import { Navigate } from 'react-router-dom';
 const API_BASE = "http://localhost:5000";
+
+// Global PrivateRoute component used across routes
+const PrivateRoute = ({ children }) => {
+  const [authChecked, setAuthChecked] = React.useState(false);
+  const [user, setUser] = React.useState(null);
+  React.useEffect(() => {
+    const check = async () => {
+      const current = await getCurrentUser();
+      setUser(current);
+      setAuthChecked(true);
+    };
+    check();
+  }, []);
+  if (!authChecked) return null;
+  return user ? children : <Navigate to="/login" replace />;
+};
 
 
 
@@ -105,6 +125,7 @@ function AnalysisPage() {
   const [analysis, setAnalysis] = useState(null);
   const [selectedHighlights, setSelectedHighlights] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1487,12 +1508,15 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/interview" element={<Interview />} />
-        <Route path="/method" element={<Method />} />
-        <Route path="/analysis" element={<AnalysisPage />} />
-        <Route path="/resume" element={<ResumePage />} />
+        <Route path="/interview" element={<PrivateRoute><Interview /></PrivateRoute>} />
+        <Route path="/method" element={<PrivateRoute><Method /></PrivateRoute>} />
+        <Route path="/analysis" element={<PrivateRoute><AnalysisPage /></PrivateRoute>} />
+        <Route path="/resume" element={<PrivateRoute><ResumePage /></PrivateRoute>} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/verify-otp" element={<VerifyOTPPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/new-login" element={<NewLoginPage />} />
         <Route path="/new-register" element={<NewRegisterPage />} />
       </Routes>
