@@ -5,6 +5,7 @@ import { register } from '../services/authService';
 
 function RegisterPage() {
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -15,7 +16,7 @@ function RegisterPage() {
     setLoading(true);
     setError('');
     try {
-      await register(username, password);
+      await register(username, email, password);
       navigate('/');
     } catch (err) {
       setError('Failed to register. Please try another username.');
@@ -39,6 +40,19 @@ function RegisterPage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              className="w-full rounded-xl bg-slate-900 border border-slate-700 p-3"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2" htmlFor="email">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-xl bg-slate-900 border border-slate-700 p-3"
               required
             />

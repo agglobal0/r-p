@@ -1,9 +1,9 @@
-// frontend/src/pages/LoginPage.js
+// frontend/src/pages/NewLoginPage.js
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../services/authService';
+import { login } from '../services/newAuthService';
 
-function LoginPage() {
+function NewLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -66,7 +66,7 @@ function LoginPage() {
         </form>
         <p className="text-center mt-4 text-sm">
           Don't have an account?{' '}
-          <a href="/register" className="text-indigo-400 hover:underline">
+          <a href="/new-register" className="text-indigo-400 hover:underline">
             Register here
           </a>
         </p>
@@ -75,4 +75,4 @@ function LoginPage() {
   );
 }
 
-export default LoginPage;
+export default NewLoginPage;

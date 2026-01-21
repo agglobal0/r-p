@@ -5,9 +5,11 @@ import { useState } from 'react';
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 // Create axios instance with default config
+// Enable sending cookies (credentials) with each request so that JWT stored in HttpOnly cookie is sent to backend
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },

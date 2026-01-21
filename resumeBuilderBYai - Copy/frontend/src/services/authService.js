@@ -1,39 +1,22 @@
 // frontend/src/services/authService.js
-const API_BASE = "http://localhost:5000";
+import api from './api';
 
-async function api(path, body) {
-  const res = await fetch(`${API_BASE}/api${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`API ${path} failed: ${res.status} ${txt}`);
-  }
-  return res.json();
-}
-
-export const login = async (username, password) => {
-  const data = await api('/users/login', { username, password });
-  if (data.token) {
-    localStorage.setItem('user', JSON.stringify(data));
-  }
-  return data;
+export const login = async (email, password) => {
+  return await api.post('/auth/login', { email, password });
 };
 
-export const register = async (username, password) => {
-  const data = await api('/users/register', { username, password });
-  if (data.token) {
-    localStorage.setItem('user', JSON.stringify(data));
-  }
-  return data;
+export const register = async (username, email, password) => {
+  return await api.post('/auth/register', { username, email, password });
 };
 
-export const logout = () => {
-  localStorage.removeItem('user');
+export const logout = async () => {
+  await api.post('/auth/logout');
 };
 
 export const getCurrentUser = () => {
-  return JSON.parse(localStorage.getItem('user'));
+  // The backend now handles the user session via cookies,
+  // so we might not need to store user info in localStorage anymore.
+  // If you still need user info on the client-side, you can have
+  // a dedicated endpoint to fetch user data.
+  return null;
 };

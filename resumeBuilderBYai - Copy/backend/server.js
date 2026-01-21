@@ -19,12 +19,8 @@ const jwt = require('jsonwebtoken');
 const User = require('./models/User');
 const Presentation = require('./models/Presentation');
 
-// Helper function to generate JWT
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
-  });
-};
+const cookieParser = require('cookie-parser');
+const authRoutes = require('./routes/auth');
 
 // --- MongoDB Connection ---
 // The user will need to install mongoose: npm install mongoose
@@ -42,67 +38,6 @@ mongoose.connect(MONGODB_URI, {
   process.exit(1);
 });
 // --- End of MongoDB Connection ---
-
-// --- User Routes ---
-const userRouter = express.Router();
-
-// @desc    Register a new user
-// @route   POST /api/users/register
-// @access  Public
-userRouter.post('/register', async (req, res) => {
-  const { username, password } = req.body;
-
-  try {
-    const userExists = await User.findOne({ username });
-
-    if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
-
-    const user = await User.create({
-      username,
-      password,
-    });
-
-    if (user) {
-      res.status(201).json({
-        _id: user._id,
-        username: user.username,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(400).json({ message: 'Invalid user data' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// @desc    Auth user & get token
-// @route   POST /api/users/login
-// @access  Public
-userRouter.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-
-  try {
-    const user = await User.findOne({ username });
-
-    if (user && (await user.matchPassword(password))) {
-      res.json({
-        _id: user._id,
-        username: user.username,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(401).json({ message: 'Invalid username or password' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-app.use('/api/users', userRouter);
-// --- End of User Routes ---
 
 // Import missing constants
 const RESUME_METHODS = {
@@ -125,12 +60,9 @@ const PORT = process.env.PORT || 5000;
 const protect = async (req, res, next) => {
   let token;
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
+  if (req.cookies.token) {
     try {
-      token = req.headers.authorization.split(' ')[1];
+      token = req.cookies.token;
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = await User.findById(decoded.id).select('-password');
       next();
@@ -156,6 +88,10 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
+
+// API Routes
+app.use('/api/auth', authRoutes);
 
 // Global state
 let resumeAnalysis = null;

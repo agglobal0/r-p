@@ -1479,6 +1479,9 @@ function Method() {
   );
 }
 
+import NewLoginPage from './pages/NewLoginPage';
+import NewRegisterPage from './pages/NewRegisterPage';
+
 export default function App() {
   return (
     <Router>
@@ -1488,6 +1491,10 @@ export default function App() {
         <Route path="/method" element={<Method />} />
         <Route path="/analysis" element={<AnalysisPage />} />
         <Route path="/resume" element={<ResumePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/new-login" element={<NewLoginPage />} />
+        <Route path="/new-register" element={<NewRegisterPage />} />
       </Routes>
     </Router>
   );
