@@ -10,18 +10,22 @@ const {
   buildInterviewPrompt, 
   buildResumeLayoutPrompt, 
   buildResumeModificationPrompt,
-  buildAnalysisPrompt 
+  buildAnalysisPrompt,
+  buildPresentationPrompt
 } = require("./util/prompts");
 const { generatePDFBuffer, generateResumeLayout } = require('./util/pdfGenerator');
-const { generateSimplePPTX } = require('./util/pptxGenerator');
+const { generateSimplePPTX, generatePresentation } = require('./util/pptxGenerator');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const User = require('./models/User');
-const Presentation = require('./models/Presentation');
+const History = require('./models/History');
+const Feedback = require('./models/Feedback');
 
 const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/auth');
 const externalRoutes = require('./routes/external');
+const historyRoutes = require('./routes/history');
+const reviewRoutes = require('./routes/review');
 
 // --- MongoDB Connection ---
 // The user will need to install mongoose: npm install mongoose
@@ -94,6 +98,8 @@ app.use(cookieParser());
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/external', externalRoutes);
+app.use('/api/history', historyRoutes);
+app.use('/api/review', reviewRoutes);
 
 // Global state
 let resumeAnalysis = null;
@@ -275,49 +281,120 @@ function generateHTMLResume(data, theme = { primary: '#2563eb' }) {
 
 
 // API Routes
-app.post("/api/generatePPTX", async (req, res) => {
+app.post("/api/generatePPTX", protect, async (req, res) => {
   try {
-    const pptx_data = await generateSimplePPTX();
-    res.json({ success: true, pptx: pptx_data });
+    const { topic, slideCount, tone } = req.body;
+
+    if (!topic) {
+      return res.status(400).json({
+        success: false,
+        error: "The 'topic' field is required in the request body.",
+      });
+    }
+
+    // 1. Generate a prompt for the AI
+    const prompt = buildPresentationPrompt(topic, slideCount, tone);
+
+    // 2. Call the AI to get structured presentation data
+    const aiData = await callDeepSeek(prompt, { max_tokens: 1000 });
+
+    // 3. Generate the .pptx file from the AI data
+    const pptx_data = await generatePresentation(aiData);
+
+    // 4. Save to history
+    const historyItem = new History({
+      title: aiData.title || topic,
+      type: 'pptx',
+      sourceData: aiData,
+      fileContent: pptx_data,
+      prompt: topic,
+      user: req.user._id,
+    });
+    const savedItem = await historyItem.save();
+
+    // 5. Send the base64 PPTX and history ID back to the client
+    res.json({ success: true, pptx: pptx_data, aiData: aiData, historyId: savedItem._id });
   } catch (error) {
     console.error("PPTX generation error:", error);
     res.status(500).json({
       success: false,
-      error: `PPTX generation failed: ${error.message}`
+      error: `PPTX generation failed: ${error.message}`,
+      details: error.cause,
     });
   }
 });
 
-// @desc    Get user presentations
-// @route   GET /api/presentations
+// @desc    Get user's generation history
+// @route   GET /api/history
 // @access  Private
-app.get('/api/presentations', protect, async (req, res) => {
+app.get('/api/history', protect, async (req, res) => {
   try {
-    const presentations = await Presentation.find({ user: req.user._id });
-    res.json(presentations);
+    const query = { user: req.user._id };
+    if (req.query.type) {
+      query.type = req.query.type;
+    }
+    const history = await History.find(query).sort({ createdAt: -1 });
+    res.json(history);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: `Error fetching history: ${error.message}` });
   }
 });
 
-// @desc    Save a presentation
-// @route   POST /api/presentations
+// @desc    Save a generated item to history
+// @route   POST /api/history
 // @access  Private
-app.post('/api/presentations', protect, async (req, res) => {
-  const { title, content, summaryPrompt } = req.body;
+app.post('/api/history', protect, async (req, res) => {
+  const { title, type, sourceData, fileContent, prompt } = req.body;
+
+  if (!title || !type || !sourceData || !fileContent) {
+    return res.status(400).json({ message: 'Missing required fields for history item.' });
+  }
 
   try {
-    const presentation = new Presentation({
+    const historyItem = new History({
       title,
-      content,
-      summaryPrompt,
+      type,
+      sourceData,
+      fileContent,
+      prompt,
       user: req.user._id,
     });
 
-    const createdPresentation = await presentation.save();
-    res.status(201).json(createdPresentation);
+    const createdHistoryItem = await historyItem.save();
+    res.status(201).json(createdHistoryItem);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ message: `Error saving history item: ${error.message}` });
+  }
+});
+
+// @desc    Submit feedback for a history item
+// @route   POST /api/feedback
+// @access  Private
+app.post('/api/feedback', protect, async (req, res) => {
+  const { historyId, rating, comment } = req.body;
+
+  if (!historyId || !rating) {
+    return res.status(400).json({ message: 'History ID and rating are required.' });
+  }
+
+  try {
+    // Ensure the history item belongs to the user
+    const historyItem = await History.findById(historyId);
+    if (!historyItem || historyItem.user.toString() !== req.user._id.toString()) {
+      return res.status(404).json({ message: 'History item not found or not owned by user.' });
+    }
+
+    const feedback = new Feedback({
+      historyItem: historyId,
+      rating,
+      comment,
+      user: req.user._id,
+    });
+
+    const createdFeedback = await feedback.save();
+    res.status(201).json(createdFeedback);
+  } catch (error) {
+    res.status(400).json({ message: `Error submitting feedback: ${error.message}` });
   }
 });
 

@@ -18,6 +18,7 @@ import VerifyOTPPage from './pages/VerifyOTPPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import { getCurrentUser, logout } from './services/authService';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navigate } from 'react-router-dom';
 const API_BASE = "http://localhost:5000";
 
@@ -145,73 +146,108 @@ function AnalysisPage() {
     try {
       const body = { 
         method: selectedMethod === "auto" ? undefined : selectedMethod, 
-        industry: selectedIndustry 
-      };
-      const res = await api("/analyzeProfile", body);
-      setAnalysis(res.analysis);
-    } catch (e) {
-      alert("Analysis failed: " + e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+        function Home() {
+          const { user, loading: authLoading } = useAuth();
+          const [health, setHealth] = useState(null);
+          const [loading, setLoading] = useState(false);
+          const checkHealth = async () => {
+            setLoading(true);
+            try {
+              const res = await fetch(`${API_BASE}/api/health`);
+              const data = await res.json();
+              setHealth(data);
+            } catch (e) {
+              setHealth({ error: e.message });
+            } finally {
+              setLoading(false);
+            }
+          };
+          useEffect(() => { checkHealth(); }, []);
 
- const proceedToResume = async () => {
-  try {
-    navigate("/resume", { state: { resume: null, pending: true, selectedHighlights } });
-  } catch (e) {
-    alert("Resume generation failed: " + e.message);
-  }
-};
+          // Show a loading state while auth status is being determined
+          if (authLoading) {
+            return (
+              <Page title="Home">
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" />
+                </div>
+              </Page>
+            );
+          }
 
-
-  const MetricCard = ({ metric, className = "" }) => (
-    <div className={`p-4 rounded-xl border border-slate-700 bg-slate-800/40 ${className}`}>
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="font-medium text-sm">{metric.metric}</h4>
-        <span className="text-2xl font-bold text-emerald-400">{metric.userScore}</span>
-      </div>
-      <div className="relative h-2 bg-slate-700 rounded-full mb-2">
-        <div 
-          className="absolute h-2 bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full"
-          style={{ width: `${(metric.userScore / 100) * 100}%` }}
-        />
-        <div 
-          className="absolute h-2 w-1 bg-slate-400 rounded-full"
-          style={{ left: `${(metric.averageScore / 100) * 100}%` }}
-        />
-      </div>
-      <div className="flex justify-between text-xs text-slate-400 mb-2">
-        <span>Avg: {metric.averageScore}</span>
-        <span>Top {100 - metric.percentile}%</span>
-      </div>
-      <p className="text-xs text-slate-300">{metric.description}</p>
-    </div>
-  );
-
-  const CircularProgress = ({ percentage, label, color = "#10b981" }) => (
-    <div className="flex flex-col items-center">
-      <div className="relative w-20 h-20">
-        <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
-          <circle
-            cx="40"
-            cy="40"
-            r="35"
-            stroke="currentColor"
-            strokeWidth="8"
-            fill="none"
-            className="text-slate-700"
-          />
-          <circle
-            cx="40"
-            cy="40"
-            r="35"
-            stroke={color}
-            strokeWidth="8"
-            fill="none"
-            strokeDasharray={`${(percentage / 100) * 220} 220`}
-            className="transition-all duration-1000 ease-out"
-          />
+          return (
+            <Page title="Home">
+              {/* Selection cards for Resume Builder and PPTX Builder */}
+              <div className="grid md:grid-cols-2 gap-6 mb-8">
+                <Link
+                  to="/resume-builder"
+                  className="block p-6 border border-slate-800 rounded-2xl bg-slate-900/40 hover:bg-slate-800 transition-colors"
+                >
+                  <h2 className="text-2xl font-bold mb-2">Resume Builder</h2>
+                  <p className="text-slate-300">Create ATS‑compatible resumes with AI assistance.</p>
+                </Link>
+                <Link
+                  to="/pptx-builder"
+                  className="block p-6 border border-slate-800 rounded-2xl bg-slate-900/40 hover:bg-slate-800 transition-colors"
+                >
+                  <h2 className="text-2xl font-bold mb-2">PPTX Builder</h2>
+                  <p className="text-slate-300">Generate AI‑enhanced presentations instantly.</p>
+                </Link>
+              </div>
+              {/* Existing health check and workflow UI */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="p-6 border border-slate-800 rounded-2xl bg-slate-900/40">
+                  <h2 className="text-xl font-semibold mb-3">Health Check</h2>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={checkHealth}
+                      className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500"
+                    >
+                      {loading ? "Checking..." : "Re-run"}
+                    </button>
+                    <button
+                      onClick={downloadPresentation}
+                      className="px-3 py-2 rounded-xl bg-green-600 hover:bg-green-500"
+                    >
+                      Download Presentation
+                    </button>
+                  </div>
+                  <pre className="mt-4 text-xs p-3 bg-slate-900 rounded-xl overflow-x-auto border border-slate-800">
+                    {JSON.stringify(health, null, 2)}
+                  </pre>
+                </div>
+                <div className="p-6 border border-slate-800 rounded-2xl bg-slate-900/40">
+                  <h2 className="text-xl font-semibold mb-3">Enhanced Workflow</h2>
+                  <div className="space-y-3 text-sm text-slate-300 mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-xs">1</div>
+                      <span>Complete interview with smart question combining</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center text-xs">2</div>
+                      <span>Select method & industry for optimization</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs">3</div>
+                      <span>Get AI analysis with statistical comparisons</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center text-xs">4</div>
+                      <span>Generate ATS-compatible resume</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <Link className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500" to="/interview">Start Interview</Link>
+                    <Link className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500" to="/method">Method Selection</Link>
+                  </div>
+                  <div className="mt-4 p-3 bg-slate-800 rounded-xl">
+                    <div className="text-xs font-semibold text-purple-400 mb-1">NEW: AI Analysis</div>
+                    <div className="text-xs text-slate-400">Get detailed insights on how you compare to other professionals with visual metrics</div>
+                  </div>
+                </div>
+              </div>
+            </Page>
+          );
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-lg font-bold">{percentage}</span>
@@ -1050,6 +1086,24 @@ function Home() {
 
   return (
     <Page title="Home">
+      {/* Selection cards for Resume Builder and PPTX Builder */}
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <Link
+          to="/resume-builder"
+          className="block p-6 border border-slate-800 rounded-2xl bg-slate-900/40 hover:bg-slate-800 transition-colors"
+        >
+          <h2 className="text-2xl font-bold mb-2">Resume Builder</h2>
+          <p className="text-slate-300">Create ATS‑compatible resumes with AI assistance.</p>
+        </Link>
+        <Link
+          to="/pptx-builder"
+          className="block p-6 border border-slate-800 rounded-2xl bg-slate-900/40 hover:bg-slate-800 transition-colors"
+        >
+          <h2 className="text-2xl font-bold mb-2">PPTX Builder</h2>
+          <p className="text-slate-300">Generate AI‑enhanced presentations instantly.</p>
+        </Link>
+      </div>
+      {/* Existing health check and workflow UI */}
       <div className="grid md:grid-cols-2 gap-6">
         <div className="p-6 border border-slate-800 rounded-2xl bg-slate-900/40">
           <h2 className="text-xl font-semibold mb-3">Health Check</h2>
@@ -1502,12 +1556,16 @@ function Method() {
 
 import NewLoginPage from './pages/NewLoginPage';
 import NewRegisterPage from './pages/NewRegisterPage';
+import PPTXBuilderPage from './pages/PPTXBuilderPage';
+import ResumeBuilderPage from './pages/ResumeBuilderPage';
 
 export default function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/pptx-builder" element={<PPTXBuilderPage />} />
+        <Route path="/resume-builder" element={<ResumeBuilderPage />} />
         <Route path="/interview" element={<PrivateRoute><Interview /></PrivateRoute>} />
         <Route path="/method" element={<PrivateRoute><Method /></PrivateRoute>} />
         <Route path="/analysis" element={<PrivateRoute><AnalysisPage /></PrivateRoute>} />

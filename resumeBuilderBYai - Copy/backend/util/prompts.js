@@ -167,9 +167,52 @@ Create structured content for resume generation:
 Extract information accurately and format for ATS systems:`;
 }
 
+function buildPresentationPrompt(topic, slideCount = 5, tone = "professional") {
+  return `
+You are an AI Presentation Content Generator. Your task is to create a structured presentation based on a given topic.
+
+Topic: "${topic}"
+Number of Slides: ${slideCount}
+Tone: ${tone}
+
+CRITICAL: You must return ONLY a valid JSON object with the following structure. Do not include any explanations or surrounding text.
+
+{
+  "title": "A Compelling Main Title for the Presentation",
+  "slides": [
+    {
+      "title": "Slide 1 Title (e.g., Introduction)",
+      "bullets": [
+        "First bullet point for slide 1.",
+        "Second bullet point for slide 1.",
+        "Third bullet point for slide 1."
+      ]
+    },
+    {
+      "title": "Slide 2 Title",
+      "bullets": [
+        "First bullet point for slide 2.",
+        "Second bullet point for slide 2."
+      ]
+    }
+  ]
+}
+
+Generate a presentation with a main title slide and ${slideCount} content slides.
+- The first slide should be an introduction or overview.
+- The middle slides should cover the main points of the topic.
+- The last slide should be a conclusion or summary.
+- Each slide must have a title and between 2 to 4 bullet points.
+- The content should be clear, concise, and adhere to the requested "${tone}" tone.
+
+Return ONLY the JSON object.
+`;
+}
+
 module.exports = {
   buildInterviewPrompt,
   buildResumeLayoutPrompt,
   buildResumeModificationPrompt,
-  buildAnalysisPrompt
+  buildAnalysisPrompt,
+  buildPresentationPrompt
 };

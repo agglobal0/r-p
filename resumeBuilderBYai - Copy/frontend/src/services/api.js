@@ -326,6 +326,17 @@ export const cachedAPICall = async (key, apiCall) => {
   return result;
 };
 
+// Convenience helper to submit a user review/feedback to the backend
+export async function submitReview(review) {
+  try {
+    const res = await apiClient.post('/review', review);
+    return res.data;
+  } catch (err) {
+    console.error('submitReview error:', err);
+    throw err;
+  }
+}
+
 // WebSocket service for real-time updates (if needed)
 export class WebSocketService {
   constructor(url = 'ws://localhost:5000') {
