@@ -5,13 +5,13 @@
 - [x] Set up MongoDB for data storage.
 
 ## Authentication
-- [ ] Implement user registration and login using JWT.
-- [ ] Create middleware for protected routes.
+- [x] Implement user registration and login using JWT.
+- [x] Create middleware for protected routes.
 
 ## AI Integration
-- [ ] Integrate `deepseek` cloud API for content generation.
-- [ ] Develop a separate service/server for fetching images from the web.
-- [ ] Implement a mechanism to search the web and feed information to `deepseek`.
+- [x] Integrate `deepseek` cloud API for content generation.
+- [x] Develop a separate service/server for fetching images from the web.
+- [x] Implement a mechanism to search the web and feed information to `deepseek`.
 
 ## PPTX and Resume Generation Logic
 - [ ] Create an endpoint to generate PPTX files based on user input and AI-generated content.

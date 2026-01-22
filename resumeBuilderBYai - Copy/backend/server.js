@@ -21,6 +21,7 @@ const Presentation = require('./models/Presentation');
 
 const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/auth');
+const externalRoutes = require('./routes/external');
 
 // --- MongoDB Connection ---
 // The user will need to install mongoose: npm install mongoose
@@ -92,6 +93,7 @@ app.use(cookieParser());
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/external', externalRoutes);
 
 // Global state
 let resumeAnalysis = null;
