@@ -1,494 +1,118 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AlertCircle, Loader2, ArrowLeft, Download, Check, Palette, Edit3, X, Send } from "lucide-react";
+import Editor from "@monaco-editor/react";
 import { createRoot } from "react-dom/client";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Link,
-  useNavigate,
-  useLocation,
-} from "react-router-dom";
-import { Download, Edit3, Palette, X, Send, ArrowLeft, AlertCircle, Loader2, Check } from 'lucide-react';
-import { downloadPresentation } from "./services/pptxService";
-import Editor from '@monaco-editor/react';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from "react-router-dom";
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import HistoryPage from './pages/HistoryPage';
 import VerifyOTPPage from './pages/VerifyOTPPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import { getCurrentUser, logout } from './services/authService';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { Navigate } from 'react-router-dom';
-const API_BASE = "http://localhost:5000";
+import ResumeBuilderPage from './pages/ResumeBuilderPage';
+import PPTXBuilderPage from './pages/PPTXBuilderPage';
+import { AuthProvider } from './context/AuthContext';
+import PrivateRoute from './pages/PrivateRoute';
 
-// Global PrivateRoute component used across routes
-const PrivateRoute = ({ children }) => {
-  const [authChecked, setAuthChecked] = React.useState(false);
-  const [user, setUser] = React.useState(null);
-  React.useEffect(() => {
-    const check = async () => {
-      const current = await getCurrentUser();
-      setUser(current);
-      setAuthChecked(true);
-    };
-    check();
-  }, []);
-  if (!authChecked) return null;
-  return user ? children : <Navigate to="/login" replace />;
-};
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5000";
 
-
-
-async function api(path, body) {
+async function postApi(path, body) {
   const res = await fetch(`${API_BASE}/api${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {})
   });
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`API ${path} failed: ${res.status} ${txt}`);
+    const text = await res.text();
+    throw new Error(`API ${path} failed: ${res.status} ${text}`);
   }
   return res.json();
 }
 
-function Badge({ children }) {
-  return (
-    <span className="px-2 py-1 rounded-full text-xs bg-slate-800 text-slate-100 border border-slate-700">
-      {children}
-    </span>
-  );
-}
-
-// HTML to PDF conversion function
-function downloadHTMLAsPDF(htmlContent, filename = 'resume.pdf') {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Please allow popups for PDF download');
-    return;
-  }
-
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>${filename}</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <style>
-            @media print {
-                body { 
-                    -webkit-print-color-adjust: exact !important;
-                    color-adjust: exact !important;
-                    margin: 0;
-                    padding: 0;
-                }
-                @page {
-                    margin: 0.5in;
-                    size: A4;
-                }
-                .no-print { display: none !important; }
-                .page-break { page-break-before: always; }
-            }
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                line-height: 1.5;
-                color: #1f2937;
-            }
-        </style>
-    </head>
-    <body>
-        ${htmlContent}
-        <div class="no-print" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
-            <button onclick="window.print()" style="background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; margin-right: 10px;">
-                Download PDF
-            </button>
-            <button onclick="window.close()" style="background: #6b7280; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;">
-                Close
-            </button>
-        </div>
-    </body>
-    </html>
-  `);
-  
-  printWindow.document.close();
-  setTimeout(() => {
-    printWindow.focus();
-    printWindow.print();
-  }, 500);
-}
-
 function AnalysisPage() {
-  const [method, setMethod] = useState("auto");
-  const [industry, setIndustry] = useState("ai");
+  const [method, setMethod] = useState('star');
+  const [industry, setIndustry] = useState('ai');
   const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState(null);
-  const [selectedHighlights, setSelectedHighlights] = useState([]);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [result, setResult] = useState(null);
+
+  const runAnalysis = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await postApi('/chooseMethod', { method, industry });
+      setResult(res.analysis || res);
+    } catch (e) {
+      setResult({ error: e.message });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const methodParam = urlParams.get('method');
-    const industryParam = urlParams.get('industry');
-    
-    if (methodParam) setMethod(methodParam);
-    if (industryParam) setIndustry(industryParam);
-    
-    if (methodParam && industryParam) {
-      runAnalysis(methodParam, industryParam);
-    }
+    const params = new URLSearchParams(window.location.search);
+    const m = params.get('method');
+    const i = params.get('industry');
+    if (m) setMethod(m);
+    if (i) setIndustry(i);
   }, []);
 
-  const runAnalysis = async (selectedMethod = method, selectedIndustry = industry) => {
-    setLoading(true);
-    try {
-      const body = { 
-        method: selectedMethod === "auto" ? undefined : selectedMethod, 
-        function Home() {
-          const { user, loading: authLoading } = useAuth();
-          const [health, setHealth] = useState(null);
-          const [loading, setLoading] = useState(false);
-          const checkHealth = async () => {
-            setLoading(true);
-            try {
-              const res = await fetch(`${API_BASE}/api/health`);
-              const data = await res.json();
-              setHealth(data);
-            } catch (e) {
-              setHealth({ error: e.message });
-            } finally {
-              setLoading(false);
-            }
-          };
-          useEffect(() => { checkHealth(); }, []);
-
-          // Show a loading state while auth status is being determined
-          if (authLoading) {
-            return (
-              <Page title="Home">
-                <div className="flex items-center justify-center py-20">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" />
-                </div>
-              </Page>
-            );
-          }
-
-          return (
-            <Page title="Home">
-              {/* Selection cards for Resume Builder and PPTX Builder */}
-              <div className="grid md:grid-cols-2 gap-6 mb-8">
-                <Link
-                  to="/resume-builder"
-                  className="block p-6 border border-slate-800 rounded-2xl bg-slate-900/40 hover:bg-slate-800 transition-colors"
-                >
-                  <h2 className="text-2xl font-bold mb-2">Resume Builder</h2>
-                  <p className="text-slate-300">Create ATS‑compatible resumes with AI assistance.</p>
-                </Link>
-                <Link
-                  to="/pptx-builder"
-                  className="block p-6 border border-slate-800 rounded-2xl bg-slate-900/40 hover:bg-slate-800 transition-colors"
-                >
-                  <h2 className="text-2xl font-bold mb-2">PPTX Builder</h2>
-                  <p className="text-slate-300">Generate AI‑enhanced presentations instantly.</p>
-                </Link>
-              </div>
-              {/* Existing health check and workflow UI */}
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="p-6 border border-slate-800 rounded-2xl bg-slate-900/40">
-                  <h2 className="text-xl font-semibold mb-3">Health Check</h2>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={checkHealth}
-                      className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500"
-                    >
-                      {loading ? "Checking..." : "Re-run"}
-                    </button>
-                    <button
-                      onClick={downloadPresentation}
-                      className="px-3 py-2 rounded-xl bg-green-600 hover:bg-green-500"
-                    >
-                      Download Presentation
-                    </button>
-                  </div>
-                  <pre className="mt-4 text-xs p-3 bg-slate-900 rounded-xl overflow-x-auto border border-slate-800">
-                    {JSON.stringify(health, null, 2)}
-                  </pre>
-                </div>
-                <div className="p-6 border border-slate-800 rounded-2xl bg-slate-900/40">
-                  <h2 className="text-xl font-semibold mb-3">Enhanced Workflow</h2>
-                  <div className="space-y-3 text-sm text-slate-300 mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-xs">1</div>
-                      <span>Complete interview with smart question combining</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center text-xs">2</div>
-                      <span>Select method & industry for optimization</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs">3</div>
-                      <span>Get AI analysis with statistical comparisons</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center text-xs">4</div>
-                      <span>Generate ATS-compatible resume</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <Link className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500" to="/interview">Start Interview</Link>
-                    <Link className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-500" to="/method">Method Selection</Link>
-                  </div>
-                  <div className="mt-4 p-3 bg-slate-800 rounded-xl">
-                    <div className="text-xs font-semibold text-purple-400 mb-1">NEW: AI Analysis</div>
-                    <div className="text-xs text-slate-400">Get detailed insights on how you compare to other professionals with visual metrics</div>
-                  </div>
-                </div>
-              </div>
-            </Page>
-          );
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-lg font-bold">{percentage}</span>
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Profile Analysis</h1>
+      <div className="space-y-3 max-w-md">
+        <label className="block">Method
+          <select value={method} onChange={e => setMethod(e.target.value)} className="w-full mt-1">
+            <option value="star">STAR</option>
+            <option value="car">CAR</option>
+            <option value="par">PAR</option>
+            <option value="soar">SOAR</option>
+            <option value="fab">FAB</option>
+          </select>
+        </label>
+        <label className="block">Industry
+          <select value={industry} onChange={e => setIndustry(e.target.value)} className="w-full mt-1">
+            <option value="ai">AI</option>
+            <option value="tech">Tech</option>
+            <option value="medical">Medical</option>
+          </select>
+        </label>
+        <div>
+          <button onClick={runAnalysis} className="px-4 py-2 bg-indigo-600 text-white rounded" disabled={loading}>
+            {loading ? 'Analyzing…' : 'Run Analysis'}
+          </button>
+        </div>
+        <div className="mt-4">
+          {result ? (
+            <pre className="p-3 bg-slate-900 text-sm rounded text-white overflow-auto">{JSON.stringify(result, null, 2)}</pre>
+          ) : (
+            <div className="text-sm text-slate-500">No analysis yet.</div>
+          )}
         </div>
       </div>
-      <span className="text-xs text-slate-400 mt-1 text-center">{label}</span>
     </div>
   );
-
-  return (
-    <Page title="Profile Analysis">
-      {loading && !analysis ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <div className="animate-spin w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <h3 className="text-lg font-semibold mb-2">Analyzing Your Profile</h3>
-            <p className="text-slate-400">AI is processing your responses and generating insights...</p>
-          </div>
-        </div>
-      ) : analysis ? (
-        <div className="space-y-8">
-          {/* Header Summary */}
-          <div className="text-center p-8 bg-gradient-to-r from-indigo-900/20 to-emerald-900/20 rounded-2xl border border-slate-800">
-            <h1 className="text-2xl font-bold mb-4">Profile Analysis Complete</h1>
-            <p className="text-slate-300 max-w-2xl mx-auto leading-relaxed">
-              {analysis.profileSummary}
-            </p>
-          </div>
-
-          {/* Key Metrics */}
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/40 text-center">
-              <CircularProgress 
-                percentage={analysis.experienceLevel?.confidence || 85} 
-                label="Profile Confidence"
-                color="#3b82f6"
-              />
-              <div className="mt-4">
-                <div className="font-semibold">{analysis.experienceLevel?.category}</div>
-                <div className="text-sm text-slate-400">{analysis.experienceLevel?.yearsEstimate} years</div>
-              </div>
-            </div>
-
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/40 text-center">
-              <CircularProgress 
-                percentage={analysis.industryFit?.score || 80} 
-                label="Industry Fit"
-                color="#10b981"
-              />
-              <div className="mt-4 text-sm text-slate-300">
-                {analysis.industryFit?.reasoning}
-              </div>
-            </div>
-
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/40 text-center">
-              <CircularProgress 
-                percentage={analysis.marketInsights?.demandLevel === 'high' ? 85 : analysis.marketInsights?.demandLevel === 'medium' ? 65 : 45} 
-                label="Market Demand"
-                color="#f59e0b"
-              />
-              <div className="mt-4">
-                <div className="font-semibold capitalize">{analysis.marketInsights?.demandLevel || 'High'} Demand</div>
-                <div className="text-sm text-slate-400">{analysis.marketInsights?.salaryRange || '$60k - $120k'}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Benchmark Comparisons */}
-          <div>
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-              How You Compare to Other Professionals
-            </h2>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {analysis.benchmarkComparisons?.map((metric, i) => (
-                <MetricCard key={i} metric={metric} />
-              ))}
-            </div>
-          </div>
-
-          {/* Skills Analysis */}
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/40">
-              <h3 className="font-semibold mb-4 text-blue-400">Technical Skills</h3>
-              <div className="space-y-2">
-                {analysis.skillsAnalysis?.technical?.map((skill, i) => (
-                  <div key={i} className="px-3 py-1 rounded-full bg-blue-900/30 border border-blue-700/50 text-sm">
-                    {skill}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/40">
-              <h3 className="font-semibold mb-4 text-emerald-400">Soft Skills</h3>
-              <div className="space-y-2">
-                {analysis.skillsAnalysis?.soft?.map((skill, i) => (
-                  <div key={i} className="px-3 py-1 rounded-full bg-emerald-900/30 border border-emerald-700/50 text-sm">
-                    {skill}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/40">
-              <h3 className="font-semibold mb-4 text-purple-400">Leadership</h3>
-              <div className="space-y-2">
-                {analysis.skillsAnalysis?.leadership?.map((skill, i) => (
-                  <div key={i} className="px-3 py-1 rounded-full bg-purple-900/30 border border-purple-700/50 text-sm">
-                    {skill}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Resume Recommendations */}
-          <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/40">
-            <h3 className="font-semibold mb-4">Resume Building Recommendations</h3>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-medium mb-3">Suggested Highlights</h4>
-                <div className="space-y-2">
-                  {analysis.resumeRecommendations?.keyHighlights?.map((highlight, i) => (
-                    <label key={i} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedHighlights.includes(highlight)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedHighlights([...selectedHighlights, highlight]);
-                          } else {
-                            setSelectedHighlights(selectedHighlights.filter(h => h !== highlight));
-                          }
-                        }}
-                        className="rounded"
-                      />
-                      <span className="text-sm">{highlight}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-3">Focus Sections</h4>
-                <div className="flex flex-wrap gap-2">
-                  {analysis.resumeRecommendations?.sectionsToFocus?.map((section, i) => (
-                    <span key={i} className="px-3 py-1 rounded-full bg-indigo-900/30 border border-indigo-700/50 text-sm">
-                      {section}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex justify-center gap-4 pt-6">
-            <button
-              onClick={() => navigate("/method")}
-              className="px-6 py-3 rounded-xl border border-slate-700 hover:border-slate-600 text-slate-300"
-            >
-              Back to Method
-            </button>
-            <button
-              onClick={proceedToResume}
-              disabled={loading}
-              className="px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold disabled:opacity-50"
-            >
-              {loading ? "Generating Resume..." : "Create Resume"}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-20">
-          <h2 className="text-xl font-semibold mb-4">No Analysis Data</h2>
-          <p className="text-slate-400 mb-6">Please complete the interview and method selection first.</p>
-          <Link to="/method" className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500">
-            Go to Method Selection
-          </Link>
-        </div>
-      )}
-    </Page>
-  );
 }
 
-async function checkMissingInfo() {
-  try {
-    const response = await api("/checkMissingInfo", {});
-    return response;
-  } catch (err) {
-    console.error("Error checking missing info:", err);
-    return { success: false };
-  }
-}
-
-
-
-function ResumePage() {
-  const location = useLocation();
+function App() {
   const navigate = useNavigate();
-
-  const [resumeData, setResumeData] = useState(location.state?.resume || null);
-  const [htmlContent, setHtmlContent] = useState('');
+  // State hooks
+  const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(false);
-  
-  // Missing info state
-  const [showMissingInfo, setShowMissingInfo] = useState(false);
-  const [missingItems, setMissingItems] = useState([]);
-  const [missingInfoAnalyzing, setMissingInfoAnalyzing] = useState(false);
-
-  const [theme, setTheme] = useState({
-    primary: "#2563eb",
-    text: "#111827",
-    muted: "#6b7280",
-  });
-
-  // Enhanced editing states with Monaco
-  const [showEditor, setShowEditor] = useState(false);
+  const [resumeData, setResumeData] = useState(null);
+  const [htmlContent, setHtmlContent] = useState('');
+  const [backgroundExpanded, setBackgroundExpanded] = useState(false);
+  const [theme, setTheme] = useState({ primary: '#000000' });
   const [selectedText, setSelectedText] = useState('');
-  const [selectedTextContext, setSelectedTextContext] = useState('');
+  const [showEditor, setShowEditor] = useState(false);
   const [editorContent, setEditorContent] = useState('');
   const [isModifying, setIsModifying] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [missingInfoAnalyzing, setMissingInfoAnalyzing] = useState(false);
+  const [missingItems, setMissingItems] = useState([]);
+  const [showMissingInfo, setShowMissingInfo] = useState(false);
 
-  // Background and styling
-  const [backgroundExpanded, setBackgroundExpanded] = useState(false);
-
-  const editorRef = useRef(null);
-
-  // Check for data and redirect if missing
-  useEffect(() => {
-    if (!location.state?.pending && !resumeData && !htmlContent) {
-      navigate('/method');
-      return;
-    }
-
-    if (location.state?.pending) {
-      generateResume(location.state?.selectedHighlights || []);
-    }
-  }, []);
+  // Placeholder for return JSX – will be inserted after helper functions
+  // (see end of file)
 
   // Check screen size
   useEffect(() => {
@@ -509,7 +133,7 @@ function ResumePage() {
   async function generateResume(highlights) {
     setLoading(true);
     try {
-      const gen = await api("/generateResume", {
+      const gen = await postApi("/generateResume", {
         preference: "ats_friendly",
         selectedHighlights: highlights,
       });
@@ -534,7 +158,7 @@ function ResumePage() {
   async function checkForMissingItems() {
     setMissingInfoAnalyzing(true);
     try {
-      const analysis = await api("/analyzeMissingItems", {
+      const analysis = await postApi("/analyzeMissingItems", {
         resumeData,
         htmlContent
       });
@@ -554,7 +178,7 @@ function ResumePage() {
   async function handleMissingItemCorrection(item, value) {
     setLoading(true);
     try {
-      const result = await api("/correctMissingItem", {
+      const result = await postApi("/correctMissingItem", {
         resumeData,
         item,
         value
@@ -584,114 +208,12 @@ function ResumePage() {
   const handleTextSelection = () => {
     const selection = window.getSelection();
     const selectedStr = selection.toString().trim();
-    
     if (selectedStr && selectedStr.length > 5) {
-      // Get surrounding context for better AI understanding
-      const range = selection.getRangeAt(0);
-      const container = range.commonAncestorContainer;
-      const parent = container.nodeType === Node.TEXT_NODE ? container.parentElement : container;
-      
-      const context = parent.textContent || parent.innerText || '';
-      
       setSelectedText(selectedStr);
-      setSelectedTextContext(context);
-      setEditorContent(`Modify the selected text: "${selectedStr}"\n\nSuggestions:\n- `);
-      setShowEditor(true);
+    } else {
+      setSelectedText('');
     }
   };
-
-  // Handle Monaco editor changes
-  const handleEditorChange = (value) => {
-    setEditorContent(value);
-  };
-
-  // Apply selected text modifications only
-  async function applySelectedTextModification() {
-    if (!selectedText || !editorContent.trim()) return;
-    
-    setIsModifying(true);
-    try {
-      const result = await api("/modifySelectedText", {
-        resumeData,
-        htmlContent,
-        selectedText,
-        context: selectedTextContext,
-        modification: editorContent
-      });
-      
-      if (result.success && result.layout) {
-        setResumeData(result.layout.data);
-        setHtmlContent(result.layout.htmlContent);
-        setShowEditor(false);
-        setSelectedText('');
-        setEditorContent('');
-        
-        // Clear selection
-        window.getSelection().removeAllRanges();
-      }
-    } catch (error) {
-      console.error("Selected text modification failed:", error);
-      alert("Modification failed: " + error.message);
-    } finally {
-      setIsModifying(false);
-    }
-  }
-
-  // Enhanced PDF download
-  const handleDownloadPDF = async () => {
-    if (!resumeData) {
-      alert("Resume data not ready. Please try again.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/api/generatePDF`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          resumeData,
-          theme,
-          format: 'pdf'
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('PDF generation failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${resumeData.personalInfo?.name || 'Resume'}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-    } catch (error) {
-      console.error('PDF download error:', error);
-      alert('PDF generation failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Loading screen
-  if (loading && !htmlContent) {
-    return (
-      <div className={`min-h-screen transition-all duration-500 ${backgroundExpanded ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-950'} text-slate-100`}>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="animate-spin w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <h3 className="text-lg font-semibold mb-2">Building Your Resume</h3>
-            <p className="text-slate-400">Please wait while we create your professional resume...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Missing Info Modal with individual item correction
   if (showMissingInfo && missingItems.length > 0) {
