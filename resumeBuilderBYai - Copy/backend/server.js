@@ -30,6 +30,33 @@ const reviewRoutes = require('./routes/review');
 // --- MongoDB Connection ---
 // The user will need to install mongoose: npm install mongoose
 // The user will also need to set the MONGO_URI in a .env file
+
+
+const requiredEnvVars = ['JWT_SECRET', 'MONGO_URI'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingEnvVars.join(', '));
+  console.error('Please create a .env file with all required variables. See .env.example');
+  process.exit(1);
+}
+
+// Global unhandled rejection handler
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 Unhandled Rejection at:', promise, 'reason:', reason);
+  // Close server & exit process in production
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
+// Global uncaught exception handler
+process.on('uncaughtException', (error) => {
+  console.error('🔥 Uncaught Exception:', error);
+  process.exit(1);
+});
+
+
 const MONGODB_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/resumeBuilder';
 
 mongoose.connect(MONGODB_URI, {

@@ -17,6 +17,422 @@ import PrivateRoute from './pages/PrivateRoute';
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5000";
 
+// Add these helper functions near the top of App.js after API_BASE declaration
+
+async function api(path, body) {
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: 'include', // Important for cookies
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`API ${path} failed: ${res.status} ${txt}`);
+  }
+  return res.json();
+}
+
+// Missing helper functions for App.js
+const editorRef = React.useRef(null);
+
+function handleEditorChange(value) {
+  // This should be defined in the component that uses the editor
+  // For now, we'll create a placeholder
+  console.log('Editor content changed:', value);
+}
+
+async function handleDownloadPDF() {
+  if (!resumeData) {
+    alert('No resume data available');
+    return;
+  }
+  
+  setLoading(true);
+  try {
+    const response = await fetch(`${API_BASE}/api/generatePDF`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ 
+        resumeData, 
+        theme,
+        format: 'pdf' 
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('PDF generation failed');
+    }
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${resumeData.personalInfo?.name || 'Resume'}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Download error:', error);
+    alert('Failed to download PDF: ' + error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function applySelectedTextModification() {
+  if (!selectedText || !editorContent) return;
+  
+  setIsModifying(true);
+  try {
+    const result = await postApi("/modifySelectedText", {
+      resumeData,
+      htmlContent,
+      selectedText,
+      context: htmlContent.substring(
+        Math.max(0, htmlContent.indexOf(selectedText) - 100),
+        Math.min(htmlContent.length, htmlContent.indexOf(selectedText) + selectedText.length + 100)
+      ),
+      modification: editorContent
+    });
+    
+    if (result.success && result.layout) {
+      setResumeData(result.layout.data);
+      setHtmlContent(result.layout.htmlContent);
+      setShowEditor(false);
+      setSelectedText('');
+      window.getSelection().removeAllRanges();
+    }
+  } catch (error) {
+    console.error('Modification error:', error);
+    alert('Failed to apply modification: ' + error.message);
+  } finally {
+    setIsModifying(false);
+  }
+}
+
+async function downloadPresentation() {
+  try {
+    // Example download - replace with your actual implementation
+    alert('Presentation download feature - implement based on your backend API');
+  } catch (error) {
+    console.error('Download error:', error);
+  }
+}
+
+// Add this component to App.js or create a separate file
+
+
+function ResumePage() {
+  const navigate = useNavigate();
+  const editorRef = useRef(null);
+  
+  const [loading, setLoading] = useState(false);
+  const [resumeData, setResumeData] = useState(null);
+  const [htmlContent, setHtmlContent] = useState('');
+  const [backgroundExpanded, setBackgroundExpanded] = useState(false);
+  const [theme, setTheme] = useState({ primary: '#2563eb' });
+  const [selectedText, setSelectedText] = useState('');
+  const [showEditor, setShowEditor] = useState(false);
+  const [editorContent, setEditorContent] = useState('');
+  const [isModifying, setIsModifying] = useState(false);
+  const [missingInfoAnalyzing, setMissingInfoAnalyzing] = useState(false);
+  const [missingItems, setMissingItems] = useState([]);
+  const [showMissingInfo, setShowMissingInfo] = useState(false);
+
+  const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000';
+
+  async function postApi(path, body) {
+    const res = await fetch(`${API_BASE}/api${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body || {}),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`API ${path} failed: ${res.status} ${txt}`);
+    }
+    return res.json();
+  }
+
+  useEffect(() => {
+    const fetchCurrentResume = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/getCurrentResume`, {
+          credentials: 'include'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.layout) {
+            setResumeData(data.layout.data);
+            setHtmlContent(data.layout.htmlContent);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch resume:', error);
+      }
+    };
+    
+    fetchCurrentResume();
+  }, []);
+
+  const handleTextSelection = () => {
+    const selection = window.getSelection();
+    const selectedStr = selection.toString().trim();
+    if (selectedStr && selectedStr.length > 5) {
+      setSelectedText(selectedStr);
+      setEditorContent(selectedStr);
+    } else {
+      setSelectedText('');
+    }
+  };
+
+  const handleEditorChange = (value) => {
+    setEditorContent(value || '');
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!resumeData) {
+      alert('No resume data available');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/generatePDF`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          resumeData, 
+          theme,
+          format: 'pdf' 
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('PDF generation failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${resumeData.personalInfo?.name || 'Resume'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download PDF: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applySelectedTextModification = async () => {
+    if (!selectedText || !editorContent) return;
+    
+    setIsModifying(true);
+    try {
+      const result = await postApi("/modifySelectedText", {
+        resumeData,
+        htmlContent,
+        selectedText,
+        context: htmlContent.substring(
+          Math.max(0, htmlContent.indexOf(selectedText) - 100),
+          Math.min(htmlContent.length, htmlContent.indexOf(selectedText) + selectedText.length + 100)
+        ),
+        modification: editorContent
+      });
+      
+      if (result.success && result.layout) {
+        setResumeData(result.layout.data);
+        setHtmlContent(result.layout.htmlContent);
+        setShowEditor(false);
+        setSelectedText('');
+        window.getSelection().removeAllRanges();
+      }
+    } catch (error) {
+      console.error('Modification error:', error);
+      alert('Failed to apply modification: ' + error.message);
+    } finally {
+      setIsModifying(false);
+    }
+  };
+
+  if (!htmlContent && !resumeData) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100">
+        <div className="text-center py-20">
+          <h2 className="text-xl font-semibold mb-4">No Resume Data Found</h2>
+          <p className="text-slate-400 mb-6">Please complete the interview and analysis first.</p>
+          <button 
+            onClick={() => navigate('/interview')}
+            className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 flex items-center gap-2 mx-auto"
+          >
+            <ArrowLeft size={16} />
+            Start Interview
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`min-h-screen transition-all duration-500 ${backgroundExpanded ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' : 'bg-slate-950'} text-slate-100`}>
+      <header className="sticky top-0 z-10 backdrop-blur bg-slate-950/70 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setBackgroundExpanded(!backgroundExpanded)}
+              className="font-semibold text-lg hover:text-indigo-400 transition-colors"
+            >
+              Resume Builder
+            </button>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/analysis')}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-700 hover:border-slate-600 text-slate-300"
+            >
+              <ArrowLeft size={16} />
+              Back
+            </button>
+            <button
+              onClick={handleDownloadPDF}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50"
+            >
+              <Download size={16} />
+              {loading ? "Generating..." : "Download PDF"}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        <div className="grid grid-cols-3 gap-6 h-[calc(100vh-200px)]">
+          <div className="col-span-2">
+            {htmlContent && (
+              <div className="h-full border border-slate-700 rounded-xl overflow-hidden bg-slate-900/40">
+                <div className="bg-slate-800 p-3 text-sm text-slate-300 flex justify-between items-center">
+                  <span>Live Preview (ATS-Compatible)</span>
+                  <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded">
+                    Select text to edit
+                  </span>
+                </div>
+                <div
+                  className="bg-white p-6 h-[calc(100%-48px)] overflow-y-auto cursor-text"
+                  dangerouslySetInnerHTML={{ __html: htmlContent }}
+                  onMouseUp={handleTextSelection}
+                  style={{ userSelect: 'text' }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4 h-full overflow-y-auto">
+            <div className="p-4 border border-slate-700 rounded-xl bg-slate-900/40">
+              <div className="flex items-center gap-2 mb-2">
+                <Palette size={16} />
+                <h3 className="font-semibold">Theme Color</h3>
+              </div>
+              <input
+                type="color"
+                value={theme.primary}
+                onChange={(e) => setTheme(prev => ({ ...prev, primary: e.target.value }))}
+                className="w-full h-10 rounded-lg"
+              />
+            </div>
+
+            {selectedText && (
+              <div className="p-4 border border-emerald-500 rounded-xl bg-emerald-900/20">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-emerald-300 flex items-center gap-2">
+                    <Edit3 size={16} />
+                    Selected Text
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setSelectedText('');
+                      setShowEditor(false);
+                      window.getSelection().removeAllRanges();
+                    }}
+                    className="text-emerald-300 hover:text-emerald-200"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowEditor(true)}
+                  className="w-full px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-medium"
+                >
+                  Edit Selected Text
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {showEditor && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 rounded-2xl p-6 w-full max-w-4xl h-[80vh] border border-slate-700 flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold">Edit Text</h3>
+                <button
+                  onClick={() => setShowEditor(false)}
+                  className="text-slate-400 hover:text-slate-200"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="flex-1 border border-slate-700 rounded-lg overflow-hidden">
+                <Editor
+                  height="100%"
+                  defaultLanguage="markdown"
+                  theme="vs-dark"
+                  value={editorContent}
+                  onChange={handleEditorChange}
+                  options={{
+                    fontSize: 14,
+                    wordWrap: 'on',
+                    lineNumbers: 'off',
+                    minimap: { enabled: false },
+                  }}
+                  onMount={(editor) => { editorRef.current = editor; }}
+                />
+              </div>
+              
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={applySelectedTextModification}
+                  disabled={isModifying}
+                  className="flex-1 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  {isModifying ? 'Applying...' : 'Apply Changes'}
+                </button>
+                <button
+                  onClick={() => setShowEditor(false)}
+                  className="px-6 py-3 rounded-xl bg-slate-700 hover:bg-slate-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+
 async function postApi(path, body) {
   const res = await fetch(`${API_BASE}/api${path}`, {
     method: 'POST',
@@ -561,7 +977,23 @@ function MissingItemCorrector({ item, onCorrect, isLoading }) {
   );
 }
 
+// Add this component definition in App.js before the Page component
 
+function Badge({ children, variant = 'default' }) {
+  const variants = {
+    default: 'bg-slate-700 text-slate-200',
+    success: 'bg-emerald-600 text-white',
+    warning: 'bg-yellow-600 text-white',
+    danger: 'bg-red-600 text-white',
+    info: 'bg-blue-600 text-white',
+  };
+
+  return (
+    <span className={`px-2 py-1 rounded text-xs font-medium ${variants[variant] || variants.default}`}>
+      {children}
+    </span>
+  );
+}
 
 function Page({ title, children, right }) {
   return (
@@ -1076,12 +1508,8 @@ function Method() {
   );
 }
 
-import NewLoginPage from './pages/NewLoginPage';
-import NewRegisterPage from './pages/NewRegisterPage';
-import PPTXBuilderPage from './pages/PPTXBuilderPage';
-import ResumeBuilderPage from './pages/ResumeBuilderPage';
 
-export default function App() {
+function App1() {
   return (
     <Router>
       <Routes>
@@ -1103,3 +1531,18 @@ export default function App() {
     </Router>
   );
 }
+
+// At the very bottom of App.js, replace the current export with:
+
+
+function AppWrapper() {
+  return (
+    <Router>
+      <AuthProvider>
+        <App1 />
+      </AuthProvider>
+    </Router>
+  );
+}
+
+export default AppWrapper;
